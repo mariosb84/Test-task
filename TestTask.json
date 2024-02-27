@@ -1,0 +1,76 @@
+// server.js
+const express = require('express');
+const addon = require('./build/Release/addon');
+
+const app = express();
+
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/index.html');
+});
+
+app.post('/check-user', (req, res) => {
+  const username = req.body.username;
+  const result = addon.checkUser(username);
+
+  if (result) {
+    res.send(`Пользователь ${username} есть`);
+  } else {
+    res.send(`Пользователя ${username} нет`);
+  }
+});
+
+app.listen(3000);
+// addon.cc
+#include <windows.h>
+#include <node_api.h>
+
+namespace {
+
+  bool checkUser(const std::string& username) {
+    // Get the list of users
+    DWORD dwSize = 0;
+    NetUserEnum(NULL, 0, FILTER_NORMAL_ACCOUNT, &dwSize);
+
+    // Allocate a buffer to store the list of users
+    LPUSER_INFO_0 pUsers = (LPUSER_INFO_0)malloc(dwSize);
+
+    // Get the list of users
+    NetUserEnum(NULL, 0, FILTER_NORMAL_ACCOUNT, &pUsers);
+
+    // Search for the specified user
+    bool found = false;
+    for (DWORD i = 0; i < dwSize / sizeof(USER_INFO_0); i++) {
+      if (pUsers[i].usri0_name == username) {
+        found = true;
+        break;
+      }
+    }
+
+    // Free the buffer
+    free(pUsers);
+
+    return found;
+  }
+
+}  // namespace
+
+NODE_MODULE(addon, Init) {
+  NODE_EXPORT_FUNCTION(checkUser);
+}
+// index.html
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Проверка наличия пользователя</title>
+  </head>
+  <body>
+    <h1>Проверка наличия пользователя</h1>
+    <form action="/check-user" method="POST">
+      <input type="text" name="username" placeholder="Введите имя пользователя">
+      <input type="submit" value="Проверить">
+    </form>
+  </body>
+</html>
+// server.bat
+@echo off
+node server.js
